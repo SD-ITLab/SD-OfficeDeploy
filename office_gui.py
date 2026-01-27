@@ -538,7 +538,7 @@ class OfficeInstallerApp(ctk.CTk):
 
         title = ctk.CTkLabel(
             main,
-            text="CLS Office Installer",
+            text="SD-OfficeDeploy - Retail",
             font=ctk.CTkFont(size=20, weight="bold"),
             anchor="w",
         )
