@@ -54,11 +54,12 @@ OFFICE_PS = BUNDLE_DIR / "office_installer.ps1"
 LOGO_PATH = BUNDLE_DIR / "logo.png"
 ICON_PATH = BUNDLE_DIR / "office.ico"
 
-APP_NAME = "SD-OfficeDeploy – Retail"
+APP_NAME = "CLS Office Installer – Retail"
 BRAND_TEXT = "© 2026 SD-ITLab – MIT licensed"
 BRAND_URL = "https://sd-itlab.de"
-LOGO_URL = "https://sd-itlab.de"
-README_URL = "https://github.com/SD-ITLab/SD-OfficeDeploy"
+LOGO_URL = "https://cls-computer.de"
+README_URL = BRAND_URL  # ggf. auf eigene Doku anpassen
+
 ACCENT = "#3B82F6"
 
 
@@ -115,7 +116,7 @@ OFFICE_PRODUCTS: Dict[str, OfficePreset] = {
     ),
 
     # --- 2024 ---------------------------------------------------------------
-    "2024_home_student": OfficePreset(
+    "2024_home_student": OfficePreset(  # Key bleibt, Label geändert
         key="2024_home_student",
         label="Office 2024 Home",
         product_id="Home2024Retail",
@@ -167,7 +168,7 @@ OFFICE_PRODUCTS: Dict[str, OfficePreset] = {
     "2021_professional": OfficePreset(
         key="2021_professional",
         label="Office 2021 Professional Plus",
-        product_id="ProPlusRetail",
+        product_id="ProPlus2021Retail",
         channel="Current",
         shortcut_apps=[
             "Word",
@@ -232,7 +233,7 @@ OFFICE_PRODUCTS: Dict[str, OfficePreset] = {
     ),
     "2016_professional": OfficePreset(
         key="2016_professional",
-        label="Office 2016 Professional Plus",
+        label="Office 2016 Professional",
         product_id="ProfessionalRetail",
         channel="Current",
         shortcut_apps=[
@@ -317,11 +318,14 @@ class EditionCard(ctk.CTkFrame):
             self.on_select()
 
     def _on_variable_changed(self, *args):
+        """Wird von trace_add aufgerufen, wenn sich der StringVar-Wert ändert."""
+        # Wenn das Widget bereits zerstört ist: nichts tun
         if not self.winfo_exists():
             return
         self._update_style(self.variable.get() == self.value)
 
     def _update_style(self, selected: bool):
+        """Optik je nach Auswahlzustand anpassen."""
         try:
             if selected:
                 self.configure(fg_color="#DBEAFE")
@@ -330,9 +334,11 @@ class EditionCard(ctk.CTkFrame):
                 self.configure(fg_color="#F9FAFB")
                 self.title_label.configure(text_color="#111827")
         except tk.TclError:
+            # Falls Tk zwischenzeitlich schon zerstört wurde, Fehler ignorieren
             pass
 
     def destroy(self):
+        """Beim Zerstören den trace wieder deregistrieren, damit keine Ghost-Callbacks bleiben."""
         try:
             if self._trace_id is not None:
                 self.variable.trace_remove("write", self._trace_id)
@@ -538,7 +544,7 @@ class OfficeInstallerApp(ctk.CTk):
 
         title = ctk.CTkLabel(
             main,
-            text="SD-OfficeDeploy - Retail",
+            text="CLS Office Installer",
             font=ctk.CTkFont(size=20, weight="bold"),
             anchor="w",
         )
