@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$ProductID,
@@ -16,7 +16,7 @@ param(
     [string[]]$ExcludeApps,
     [string[]]$ShortcutApps,
 
-    # Debug: Temp-Ordner nach der Installation NICHT löschen
+    # Debug: Temp-Ordner nach der Installation NICHT loeschen
     [switch]$KeepTemp
 )
 
@@ -29,7 +29,7 @@ $PSDefaultParameterValues['Invoke-WebRequest:UseBasicParsing'] = $true
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 Write-Host ""
-Write-Host "=== CLS Office Installer – Retail ==="
+Write-Host "=== Office Installer - Retail ==="
 Write-Host "Produkt-ID : $ProductID"
 Write-Host "Sprache    : $Language"
 Write-Host "Architektur: $Arch"
@@ -57,17 +57,63 @@ function Get-ExistingOffice {
         'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration',
         'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Office\ClickToRun\Configuration'
     )
+    $officeExecutables = @(
+        'WINWORD.EXE',
+        'EXCEL.EXE',
+        'POWERPNT.EXE',
+        'OUTLOOK.EXE',
+        'MSACCESS.EXE',
+        'MSPUB.EXE'
+    )
 
     foreach ($k in $keys) {
-        if (Test-Path $k) {
-            try {
-                return Get-ItemProperty -Path $k -ErrorAction Stop
-            } catch {}
+        if (-not (Test-Path $k)) {
+            continue
         }
+
+        try {
+            $configuration = Get-ItemProperty -Path $k -ErrorAction Stop
+            $officeProducts = @($configuration.ProductReleaseIds -split ',') |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ -and $_ -notmatch '(?i)OneDrive' }
+
+            if ($officeProducts.Count -eq 0) {
+                continue
+            }
+
+            $installationRoots = @(
+                $configuration.InstallationPath,
+                (Join-Path $env:ProgramFiles 'Microsoft Office'),
+                $(if (${env:ProgramFiles(x86)}) { Join-Path ${env:ProgramFiles(x86)} 'Microsoft Office' })
+            ) | Where-Object { $_ } | Select-Object -Unique
+
+            $officeAppFound = $false
+            foreach ($root in $installationRoots) {
+                foreach ($relativeFolder in @('', 'root\Office16', 'Office16')) {
+                    $appFolder = if ($relativeFolder) { Join-Path $root $relativeFolder } else { $root }
+                    foreach ($executable in $officeExecutables) {
+                        if (Test-Path (Join-Path $appFolder $executable)) {
+                            $officeAppFound = $true
+                            break
+                        }
+                    }
+                    if ($officeAppFound) { break }
+                }
+                if ($officeAppFound) { break }
+            }
+
+            if ($officeAppFound) {
+                return [pscustomobject]@{
+                    ProductReleaseIds = $officeProducts -join ','
+                }
+            }
+
+            Write-Host "Ignoriere verwaisten Office-Registryeintrag: $($officeProducts -join ', ')" -ForegroundColor Yellow
+        } catch {}
     }
+
     return $null
 }
-
 function Get-ODTUrl {
     [CmdletBinding()]
     param()
@@ -112,7 +158,7 @@ function Ensure-OfficeDeploymentTool {
     # 1. Versuche dynamische URL
     $odtUrl = Get-ODTUrl
     if (-not $odtUrl) {
-        Write-Host "Nutze Fallback-URL für ODT." -ForegroundColor Yellow
+        Write-Host "Nutze Fallback-URL fuer ODT." -ForegroundColor Yellow
         $odtUrl = $FallbackUrl
     }
 
@@ -141,9 +187,48 @@ function Ensure-OfficeDeploymentTool {
         Fail-And-Exit "setup.exe wurde nach dem Entpacken nicht gefunden."
     }
 
-    # Nur kopieren, wenn Source und Ziel unterschiedlich sind
-    if ($foundSetup.FullName -ne $SetupPath) {
-        Copy-Item -Path $foundSetup.FullName -Destination $SetupPath -Force
+    # Pfade normalisieren, um 8.3 Short-Path-Probleme (wie ADMINI~1) in Audit-Mode zu vermeiden
+    $normSource = $foundSetup.FullName
+    $normDest   = $SetupPath
+    try { if (Test-Path -LiteralPath $normSource) { $normSource = (Get-Item -LiteralPath $normSource).FullName } } catch {}
+    try { if (Test-Path -LiteralPath $normDest)   { $normDest   = (Get-Item -LiteralPath $normDest).FullName } } catch {}
+
+    # Nur kopieren, wenn Source und Ziel wirklich unterschiedlich sind
+    if ($normSource -ne $normDest) {
+
+        $maxWaitSeconds = 30       # maximale Wartezeit insgesamt
+        $retryDelayMs   = 500      # Pause zwischen den Versuchen (ms)
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+
+        while ($true) {
+            try {
+                Copy-Item -Path $foundSetup.FullName -Destination $SetupPath -Force
+                Write-Host "setup.exe wurde nach '$SetupPath' kopiert."
+                break
+            }
+            catch {
+                $hr  = $_.Exception.HResult
+                $hex = '0x{0:X8}' -f ($hr -band 0xffffffff)
+
+                # nach Ablauf der maximalen Wartezeit -> wirklich abbrechen
+                if ($sw.Elapsed.TotalSeconds -ge $maxWaitSeconds) {
+                    Write-Host "Konnte setup.exe innerhalb von $maxWaitSeconds Sekunden nicht kopieren (Datei bleibt gesperrt / Fehler ${hex})." -ForegroundColor Red
+                    Write-Host ($_ | Out-String)
+                    throw
+                }
+
+                # typischer Sharing-Violation-Fehler (Datei in Benutzung): 0x80070020 = -2147024864
+                if ($hr -eq -2147024864) {
+                    Write-Host "setup.exe ist noch gesperrt (Sharing violation, HResult ${hex}) - versuche es erneut ..." -ForegroundColor Yellow
+                }
+                else {
+                    Write-Host "Fehler beim Kopieren von setup.exe (HResult ${hex}) - versuche es erneut ..." -ForegroundColor Yellow
+                    Write-Host ($_ | Out-String)
+                }
+
+                Start-Sleep -Milliseconds $retryDelayMs
+            }
+        }
     }
 
     if (-not (Test-Path $SetupPath)) {
@@ -160,7 +245,7 @@ function Get-OfficeClientEdition {
         "32"   { return "32" }
         "64"   { return "64" }
         "ARM64" {
-            Write-Host "ARM64 gewählt – verwende OfficeClientEdition=64." -ForegroundColor Yellow
+            Write-Host "ARM64 gewaehlt - verwende OfficeClientEdition=64." -ForegroundColor Yellow
             return "64"
         }
         default {
@@ -175,25 +260,25 @@ function New-DesktopShortcutsFromStartMenu {
         [string[]]$Apps
     )
 
-    # Hier liegen die Startmenü-Verknüpfungen
+    # Hier liegen die Startmenue-Verknuepfungen
     $startMenuRoot = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
     # aktueller Benutzer-Desktop
     $desktopPath   = [Environment]::GetFolderPath('Desktop')
 
     if (-not (Test-Path $desktopPath)) {
-        Write-Host "Benutzer-Desktop nicht gefunden – Shortcuts werden übersprungen." -ForegroundColor Yellow
+        Write-Host "Benutzer-Desktop nicht gefunden - Shortcuts werden uebersprungen." -ForegroundColor Yellow
         return
     }
 
     foreach ($app in $Apps) {
-        Write-Host "Suche Startmenü-Shortcut für '$app' ..."
+        Write-Host "Suche Startmenue-Shortcut fuer '$app' ..."
 
-        # „Word“, „Word 2024“, „Microsoft Word“ etc. werden durch das * mit erwischt
+        # "Word", "Word 2024", "Microsoft Word" etc. werden durch das * mit erwischt
         $shortcut = Get-ChildItem -Path $startMenuRoot -Recurse -Filter "$app*.lnk" -ErrorAction SilentlyContinue |
                     Select-Object -First 1
 
         if (-not $shortcut) {
-            Write-Host "  -> Kein Startmenü-Shortcut für '$app' gefunden, überspringe." -ForegroundColor Yellow
+            Write-Host "  -> Kein Startmenue-Shortcut fuer '$app' gefunden, ueberspringe." -ForegroundColor Yellow
             continue
         }
 
@@ -210,7 +295,7 @@ function New-DesktopShortcutsFromStartMenu {
 }
 
 # ------------------------------------------------------------
-# Array-Parameter normalisieren (falls als "A,B,C" übergeben)
+# Array-Parameter normalisieren (falls als "A,B,C" uebergeben)
 # ------------------------------------------------------------
 if ($ExcludeApps) {
     if ($ExcludeApps.Count -eq 1) {
@@ -236,7 +321,7 @@ if ($existing) {
 }
 
 # ------------------------------------------------------------
-# Basis-Pfade – immer Temp (autarker Installer)
+# Basis-Pfade - immer Temp (autarker Installer)
 # ------------------------------------------------------------
 
 $UseTemp = $true
@@ -252,7 +337,7 @@ $OdtTmp     = Join-Path $WorkDir "officedeploymenttool.exe"
 $OdtFallbackUrl = "https://download.microsoft.com/download/6c1eeb25-cf8b-41d9-8d0d-cc1dbc032140/officedeploymenttool_19628-20046.exe"
 
 # ------------------------------------------------------------
-# 1/3 – Konfiguration erstellen
+# 1/3 - Konfiguration erstellen
 # ------------------------------------------------------------
 
 Write-Host "[1/3] Erstelle Office-Konfiguration ..." -ForegroundColor Cyan
@@ -297,7 +382,7 @@ Ensure-OfficeDeploymentTool `
     -ExtractDir $WorkDir
 
 # ------------------------------------------------------------
-# 2/3 – Office-Installation
+# 2/3 - Office-Installation
 # ------------------------------------------------------------
 
 Write-Host ""
@@ -329,7 +414,7 @@ if ($exitCode -ne 0) {
 Write-Host "Office-Installation erfolgreich." -ForegroundColor Green
 
 # ------------------------------------------------------------
-# 3/3 – Shortcuts anlegen (Startmenü → Desktop)
+# 3/3 - Shortcuts anlegen (Startmenue -> Desktop)
 # ------------------------------------------------------------
 
 if ($ShortcutApps -and $ShortcutApps.Count -gt 0) {
@@ -338,11 +423,11 @@ if ($ShortcutApps -and $ShortcutApps.Count -gt 0) {
     New-DesktopShortcutsFromStartMenu -Apps $ShortcutApps
 }
 else {
-    Write-Host "Keine ShortcutApps angegeben – überspringe Shortcuts."
+    Write-Host "Keine ShortcutApps angegeben - ueberspringe Shortcuts."
 }
 
 # ------------------------------------------------------------
-# Temp aufräumen
+# Temp aufraeumen
 # ------------------------------------------------------------
 
 if ($UseTemp -and -not $KeepTemp -and (Test-Path $WorkDir)) {
@@ -350,5 +435,5 @@ if ($UseTemp -and -not $KeepTemp -and (Test-Path $WorkDir)) {
 }
 
 Write-Host ""
-Write-Host "Fertig ✅ Office Installation abgeschlossen." -ForegroundColor Green
+Write-Host "Fertig [OK] Office Installation abgeschlossen." -ForegroundColor Green
 exit 0
