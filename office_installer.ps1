@@ -29,7 +29,7 @@ $PSDefaultParameterValues['Invoke-WebRequest:UseBasicParsing'] = $true
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 Write-Host ""
-Write-Host "=== Office Installer - Retail ==="
+Write-Host "=== SD-ITLab Office Installer ==="
 Write-Host "Produkt-ID : $ProductID"
 Write-Host "Sprache    : $Language"
 Write-Host "Architektur: $Arch"
