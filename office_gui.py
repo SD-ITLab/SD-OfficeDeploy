@@ -54,10 +54,10 @@ OFFICE_PS = BUNDLE_DIR / "office_installer.ps1"
 LOGO_PATH = BUNDLE_DIR / "logo.png"
 ICON_PATH = BUNDLE_DIR / "office.ico"
 
-APP_NAME = "CLS Office Installer – Retail"
+APP_NAME = "Office Installer – Retail"
 BRAND_TEXT = "© 2026 SD-ITLab – MIT licensed"
 BRAND_URL = "https://sd-itlab.de"
-LOGO_URL = "https://cls-computer.de"
+LOGO_URL = "https://sd-itlab.de"
 README_URL = BRAND_URL  # ggf. auf eigene Doku anpassen
 
 ACCENT = "#3B82F6"
@@ -544,7 +544,7 @@ class OfficeInstallerApp(ctk.CTk):
 
         title = ctk.CTkLabel(
             main,
-            text="CLS Office Installer",
+            text="Office Installer",
             font=ctk.CTkFont(size=20, weight="bold"),
             anchor="w",
         )
