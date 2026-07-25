@@ -51,15 +51,14 @@ else:
 OFFICE_PS = BUNDLE_DIR / "office_installer.ps1"
 
 # Logo kann ebenfalls aus dem Bundle geladen werden
-LOGO_PATH = BUNDLE_DIR / "logo.png"
-ICON_PATH = BUNDLE_DIR / "office.ico"
+LOGO_PATH = BUNDLE_DIR / "sditlab_logo.png"
+ICON_PATH = BUNDLE_DIR / "sditlab.ico"
 
-APP_NAME = "Office Installer – Retail"
+APP_NAME = "SD-ITLab Office Installer"
 BRAND_TEXT = "© 2026 SD-ITLab – MIT licensed"
 BRAND_URL = "https://sd-itlab.de"
-LOGO_URL = "https://sd-itlab.de"
-README_URL = BRAND_URL  # ggf. auf eigene Doku anpassen
-
+LOGO_URL = BRAND_URL
+README_URL = "https://github.com/SD-ITLab/SD-OfficeDeploy"
 ACCENT = "#3B82F6"
 
 
@@ -83,7 +82,7 @@ LANG_MAP = {label: code for label, code in LANG_OPTIONS}
 
 
 # ---------------------------------------------------------------------------
-# Office-Presets (Retail only)
+# Office-Presets (Retail und LTSC/Volume)
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -185,7 +184,7 @@ OFFICE_PRODUCTS: Dict[str, OfficePreset] = {
     "2019_home_student": OfficePreset(
         key="2019_home_student",
         label="Office 2019 Home & Student",
-        product_id="HomeStudentRetail",
+        product_id="HomeStudent2019Retail",
         channel="Current",
         shortcut_apps=["Word", "Excel", "PowerPoint"],
         exclude_apps=["Outlook", "Access", "Publisher", "Teams"],
@@ -193,7 +192,7 @@ OFFICE_PRODUCTS: Dict[str, OfficePreset] = {
     "2019_business": OfficePreset(
         key="2019_business",
         label="Office 2019 Home & Business",
-        product_id="HomeBusinessRetail",
+        product_id="HomeBusiness2019Retail",
         channel="Current",
         shortcut_apps=["Word", "Excel", "PowerPoint", "Outlook"],
         exclude_apps=["Access", "Publisher", "Teams"],
@@ -201,7 +200,7 @@ OFFICE_PRODUCTS: Dict[str, OfficePreset] = {
     "2019_professional": OfficePreset(
         key="2019_professional",
         label="Office 2019 Professional Plus",
-        product_id="ProPlusRetail",
+        product_id="ProPlus2019Retail",
         channel="Current",
         shortcut_apps=[
             "Word",
@@ -246,17 +245,68 @@ OFFICE_PRODUCTS: Dict[str, OfficePreset] = {
         ],
         exclude_apps=["Teams"],
     ),
-}
+
+    # --- LTSC / Volumenlizenz -----------------------------------------------
+    "2024_ltsc_standard": OfficePreset(
+        key="2024_ltsc_standard",
+        label="Office LTSC 2024 Standard",
+        product_id="Standard2024Volume",
+        channel="PerpetualVL2024",
+        shortcut_apps=["Word", "Excel", "PowerPoint", "Outlook", "Publisher"],
+        exclude_apps=["Access", "Teams"],
+    ),
+    "2024_ltsc_professional": OfficePreset(
+        key="2024_ltsc_professional",
+        label="Office LTSC 2024 Professional Plus",
+        product_id="ProPlus2024Volume",
+        channel="PerpetualVL2024",
+        shortcut_apps=["Word", "Excel", "PowerPoint", "Outlook", "Access", "Publisher"],
+        exclude_apps=["Teams"],
+    ),
+    "2021_ltsc_standard": OfficePreset(
+        key="2021_ltsc_standard",
+        label="Office LTSC 2021 Standard",
+        product_id="Standard2021Volume",
+        channel="PerpetualVL2021",
+        shortcut_apps=["Word", "Excel", "PowerPoint", "Outlook", "Publisher"],
+        exclude_apps=["Access", "Teams"],
+    ),
+    "2021_ltsc_professional": OfficePreset(
+        key="2021_ltsc_professional",
+        label="Office LTSC 2021 Professional Plus",
+        product_id="ProPlus2021Volume",
+        channel="PerpetualVL2021",
+        shortcut_apps=["Word", "Excel", "PowerPoint", "Outlook", "Access", "Publisher"],
+        exclude_apps=["Teams"],
+    ),
+    "2019_ltsc_standard": OfficePreset(
+        key="2019_ltsc_standard",
+        label="Office 2019 Standard (Volume)",
+        product_id="Standard2019Volume",
+        channel="PerpetualVL2019",
+        shortcut_apps=["Word", "Excel", "PowerPoint", "Outlook", "Publisher"],
+        exclude_apps=["Access", "Teams"],
+    ),
+    "2019_ltsc_professional": OfficePreset(
+        key="2019_ltsc_professional",
+        label="Office 2019 Professional Plus (Volume)",
+        product_id="ProPlus2019Volume",
+        channel="PerpetualVL2019",
+        shortcut_apps=["Word", "Excel", "PowerPoint", "Outlook", "Access", "Publisher"],
+        exclude_apps=["Teams"],
+    ),}
 
 # Seitenleiste: (Label, interner Key)
-YEARS = [
+OFFICE_VERSIONS = [
     ("Microsoft 365", "m365"),
-    ("2024", "2024"),
-    ("2021", "2021"),
-    ("2019", "2019"),
-    ("2016", "2016"),
+    ("2024 - Retail", "2024_retail"),
+    ("2021 - Retail", "2021_retail"),
+    ("2019 - Retail", "2019_retail"),
+    ("2016 - Retail", "2016_retail"),
+    ("2024 - LTSC", "2024_ltsc"),
+    ("2021 - LTSC", "2021_ltsc"),
+    ("2019 - LTSC", "2019_ltsc"),
 ]
-
 
 # ---------------------------------------------------------------------------
 # GUI-Komponenten
@@ -382,7 +432,7 @@ class OfficeInstallerApp(ctk.CTk):
 
         # State
         # Default: 2024 Home
-        self.selected_year = ctk.StringVar(value="2024")
+        self.selected_year = ctk.StringVar(value="2024_retail")
         self.selected_preset = ctk.StringVar(value="2024_home_student")
 
         # Sprache als Anzeige- und Code-Var getrennt
@@ -434,7 +484,7 @@ class OfficeInstallerApp(ctk.CTk):
 
     def _change_year_by_offset(self, delta: int):
         """Wechselt das Jahr in der linken Leiste relativ (nur im Cards-Fokus)."""
-        year_keys = [key for (_label, key) in YEARS]
+        year_keys = [key for (_label, key) in OFFICE_VERSIONS]
         current = self.selected_year.get()
         if current not in year_keys:
             return
@@ -517,7 +567,13 @@ class OfficeInstallerApp(ctk.CTk):
         header.grid(row=0, column=0, padx=12, pady=(10, 6), sticky="w")
 
         self.year_buttons: Dict[str, ctk.CTkButton] = {}
-        for idx, (label, key) in enumerate(YEARS, start=1):
+        row = 1
+        for label, key in OFFICE_VERSIONS:
+            if key == "2024_ltsc":
+                separator = ctk.CTkFrame(sidebar, height=1, fg_color="#D1D5DB")
+                separator.grid(row=row, column=0, padx=12, pady=(8, 8), sticky="ew")
+                row += 1
+
             btn = ctk.CTkButton(
                 sidebar,
                 text=label,
@@ -528,12 +584,12 @@ class OfficeInstallerApp(ctk.CTk):
                 corner_radius=8,
                 height=32,
             )
-            btn.grid(row=idx, column=0, padx=12, pady=4, sticky="ew")
+            btn.grid(row=row, column=0, padx=12, pady=3, sticky="ew")
             self.year_buttons[key] = btn
+            row += 1
 
-        sidebar.grid_rowconfigure(len(YEARS) + 1, weight=1)
+        sidebar.grid_rowconfigure(row, weight=1)
         self._update_year_buttons()
-
     def _build_main(self):
         main = ctk.CTkFrame(self, fg_color="white")
         main.grid(row=0, column=1, sticky="nsew", padx=(12, 8), pady=(12, 0))
@@ -544,7 +600,7 @@ class OfficeInstallerApp(ctk.CTk):
 
         title = ctk.CTkLabel(
             main,
-            text="Office Installer",
+            text="SD-ITLab Office Installer",
             font=ctk.CTkFont(size=20, weight="bold"),
             anchor="w",
         )
@@ -857,10 +913,12 @@ class OfficeInstallerApp(ctk.CTk):
         self.selected_year.set(year_key)
 
         if year_key == "m365":
-            # Default dort: Single
             self.selected_preset.set("m365_single")
+        elif year_key.endswith("_retail"):
+            calendar_year = year_key.split("_", 1)[0]
+            self.selected_preset.set(f"{calendar_year}_home_student")
         else:
-            self.selected_preset.set(f"{year_key}_home_student")
+            self.selected_preset.set(f"{year_key}_standard")
 
         self._update_year_buttons()
         self._update_edition_cards()
@@ -870,42 +928,46 @@ class OfficeInstallerApp(ctk.CTk):
             card.destroy()
         self.edition_cards.clear()
 
-        year = self.selected_year.get()
+        version_key = self.selected_year.get()
 
-        if year == "m365":
-            # Reihenfolge: Single, dann Family
-            presets_for_year = ["m365_single", "m365_family"]
+        if version_key == "m365":
+            presets_for_version = ["m365_single", "m365_family"]
+        elif version_key.endswith("_retail"):
+            calendar_year = version_key.split("_", 1)[0]
+            presets_for_version = [
+                f"{calendar_year}_home_student",
+                f"{calendar_year}_business",
+                f"{calendar_year}_professional",
+            ]
         else:
-            presets_for_year = [
-                f"{year}_home_student",
-                f"{year}_business",
-                f"{year}_professional",
+            presets_for_version = [
+                f"{version_key}_standard",
+                f"{version_key}_professional",
             ]
 
         descriptions = {
-            "home_student": "Enthält Word, Excel, PowerPoint – ideal für Privat / Schule.",
+            "home_student": "Enthält Word, Excel und PowerPoint – ideal für Privat und Schule.",
             "business": "Home & Business: zusätzlich Outlook – ideal für Office-Arbeitsplätze.",
-            "professional": "Professional Plus: inkl. Access & Publisher – für erweiterte Anforderungen.",
-            "single": "Abonnement: Microsoft 365 Single – 1 Benutzer mit je 5 Geräten, persönliche Lizenz.",
-            "family": "Abonnement: Microsoft 365 Family – bis zu 6 Benutzer mit je 5 Geräten.",
+            "standard": "Volumenlizenz mit Word, Excel, PowerPoint, Outlook und Publisher.",
+            "professional": "Professional Plus: inklusive Access und Publisher.",
+            "single": "Abonnement für eine Person mit Nutzung auf mehreren Geräten.",
+            "family": "Abonnement für bis zu sechs Personen.",
         }
 
         row = 1
-        for key in presets_for_year:
+        for key in presets_for_version:
             preset = OFFICE_PRODUCTS[key]
-            suffix = key.split("_", 1)[1]
-            desc_text = descriptions.get(suffix, "")
+            suffix = "home_student" if key.endswith("_home_student") else key.rsplit("_", 1)[1]
             card = EditionCard(
                 self.cards_frame,
                 title=preset.label,
-                description=desc_text,
+                description=descriptions.get(suffix, ""),
                 variable=self.selected_preset,
                 value=key,
             )
             card.grid(row=row, column=0, padx=4, pady=4, sticky="ew")
             self.edition_cards.append(card)
             row += 1
-
     # ------------------------------------------------------------------ Installation
 
     def _on_cancel_clicked(self):
@@ -938,7 +1000,7 @@ class OfficeInstallerApp(ctk.CTk):
         self._installing = True
         self.btn_install.configure(state="disabled")
         self.btn_cancel.configure(state="disabled")
-        self.status_label.configure(text="Starte Office-Installation …")
+        self.status_label.configure(text="Office-Installation läuft…")
         self.progress.start()
 
         thread = threading.Thread(target=self._run_install_thread, daemon=True)
